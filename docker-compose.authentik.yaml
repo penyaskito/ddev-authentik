@@ -11,7 +11,7 @@ services:
       timeout: 5s
     volumes:
       - ".:/mnt/ddev_config"
-        #- "authentik-pgsql:/var/lib/postgresql/data"
+      - "authentik-pgsql:/var/lib/postgresql/data"
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-authentik}
       POSTGRES_USER: ${POSTGRES_USER:-authentik}
@@ -41,13 +41,43 @@ services:
       com.ddev.site-name: ${DDEV_SITENAME}
       com.ddev.approot: $DDEV_APPROOT
 
+  authentik-worker:
+    container_name: ddev-${DDEV_SITENAME}-authentik-worker
+    image: ghcr.io/goauthentik/server:2024.4.2
+    restart: unless-stopped
+    command: worker
+    environment:
+      AUTHENTIK_REDIS__HOST: ddev-${DDEV_SITENAME}-authentik-redis
+      AUTHENTIK_POSTGRESQL__HOST: ddev-${DDEV_SITENAME}-authentik-pgsql
+      AUTHENTIK_POSTGRESQL__USER: ${POSTGRES_USER:-authentik}
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${POSTGRES_PASSWORD:-authentik}
+      AUTHENTIK_SECRET_KEY: "${AUTHENTIK_SECRET_KEY:-R3MKMGbZM42N6TVckYoj8g780QFMS39OJDEnNKdew0hcNUHPyN6m7FyQfG2Xazlw0zt3wjCs6wwtC+31}"
+      AUTHENTIK_ERROR_REPORTING__ENABLED: "${AUTHENTIK_ERROR_REPORTING__ENABLED:-true}"
+      AUTHENTIK_BOOTSTRAP_PASSWORD: "${AUTHENTIK_BOOTSTRAP_PASSWORD:-akadmin}"
+      AUTHENTIK_BOOTSTRAP_TOKEN: "${AUTHENTIK_BOOTSTRAP_TOKEN:-akadmintoken}"
+      VIRTUAL_HOST: "${DDEV_HOSTNAME}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ".:/mnt_ddev_config"
+      - "authentik-media:/media"
+      - "authentik-custom-templates:/templates"
+      - "authentik-certs:/certs"
+    depends_on:
+      - authentik-pgsql
+      - authentik-redis
+    networks: [default, ddev_default]
+    external_links:
+      - ddev-router:${DDEV_SITENAME}.${DDEV_TLD}
+    labels:
+      com.ddev.site-name: ${DDEV_SITENAME}
+      com.ddev.approot: $DDEV_APPROOT
+
   authentik:
     container_name: ddev-${DDEV_SITENAME}-authentik
     image: ghcr.io/goauthentik/server:2024.4.2
     command: server
     environment:
-      HTTP_EXPOSE: "9000:9000"
-      HTTPS_EXPOSE: "9443:9443"
       AUTHENTIK_HOST: ${DDEV_PRIMARY_URL}
       AUTHENTIK_INSECURE: "true"
       AUTHENTIK_REDIS__HOST: ddev-${DDEV_SITENAME}-authentik-redis
@@ -59,10 +89,14 @@ services:
       AUTHENTIK_ERROR_REPORTING__ENABLED: "${AUTHENTIK_ERROR_REPORTING__ENABLED:-true}"
       AUTHENTIK_BOOTSTRAP_PASSWORD: "${AUTHENTIK_BOOTSTRAP_PASSWORD:-akadmin}"
       AUTHENTIK_BOOTSTRAP_TOKEN: "${AUTHENTIK_BOOTSTRAP_TOKEN:-akadmintoken}"
+      VIRTUAL_HOST: "${DDEV_HOSTNAME}"
+      HTTP_EXPOSE: "8142:9000"
+      HTTPS_EXPOSE: "8143:9443"
+
     volumes:
       - ".:/mnt_ddev_config"
-        #- "authentik-media:/media"
-        #- "authentik-custom-templates:/templates"
+      - "authentik-media:/media"
+      - "authentik-custom-templates:/templates"
     expose:
       - 9000
       - 9443
@@ -70,6 +104,8 @@ services:
       - authentik-pgsql
       - authentik-redis
     networks: [default, ddev_default]
+    external_links:
+      - ddev-router:${DDEV_SITENAME}.${DDEV_TLD}
     restart: "no"
     labels:
       com.ddev.site-name: ${DDEV_SITENAME}
@@ -79,4 +115,10 @@ volumes:
   authentik-redis:
     driver: local
   authentik-pgsql:
+    driver: local
+  authentik-media:
+    driver: local
+  authentik-custom-templates:
+    driver: local
+  authentik-certs:
     driver: local
