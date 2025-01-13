@@ -9,11 +9,11 @@
 
 This add-on provides the identity provider [Authentik](https://docs.goauthentik.io/docs/) for [DDEV](https://ddev.readthedocs.io)..
 
-In DDEV addons can be installed from the command line using the `ddev get` command, for example, `ddev get ddev/ddev-authentik`.
+In DDEV addons can be installed from the command line using the `ddev add-on` command, for example, `ddev add-on get penyaskito/ddev-authentik`.
 
 ## Getting started
 
-1. Run `ddev get https://github.com/penyaskito/ddev-authentik` in your project.
+1. Run `ddev add-on get penyaskito/ddev-authentik` in your project.
 
 
 **Contributed and maintained by [@penyaskito](https://github.com/penyaskito). Thanks to [@Lullabot](https://github.com/lullabot) for their support!**
