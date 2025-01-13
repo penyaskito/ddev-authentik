@@ -90,8 +90,7 @@ services:
       AUTHENTIK_BOOTSTRAP_PASSWORD: "${AUTHENTIK_BOOTSTRAP_PASSWORD:-akadmin}"
       AUTHENTIK_BOOTSTRAP_TOKEN: "${AUTHENTIK_BOOTSTRAP_TOKEN:-akadmintoken}"
       VIRTUAL_HOST: "${DDEV_HOSTNAME}"
-      HTTP_EXPOSE: "8142:9000"
-      HTTPS_EXPOSE: "8143:9443"
+      HTTPS_EXPOSE: "8142:9000"
 
     volumes:
       - ".:/mnt_ddev_config"
@@ -99,7 +98,6 @@ services:
       - "authentik-custom-templates:/templates"
     expose:
       - 9000
-      - 9443
     depends_on:
       - authentik-pgsql
       - authentik-redis
