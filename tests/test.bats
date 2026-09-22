@@ -57,6 +57,22 @@ wait_for_http() {
   return 1
 }
 
+# Same, but from the host through the DDEV router. Kept separate because the
+# router needs its own grace period: once Authentik is healthy in-network,
+# Traefik still has to pick up the backend, and it answers 502 until it does.
+wait_for_router() {
+  local url="$1" attempts="${2:-60}" i status
+  for ((i = 1; i <= attempts; i++)); do
+    status="$(curl -s -o /dev/null -w '%{http_code}' "${url}" 2>/dev/null || true)"
+    case "${status}" in
+      2*) return 0 ;;
+    esac
+    sleep 5
+  done
+  echo "# timed out waiting for ${url} via the router (last status: ${status:-none})" >&3
+  return 1
+}
+
 health_checks() {
   # Liveness: the server process is up and serving.
   run wait_for_http "authentik:9000/-/health/live/"
@@ -78,9 +94,7 @@ health_checks() {
   # End-to-end through the DDEV router, which is how a developer actually
   # reaches Authentik. This exercises HTTPS_EXPOSE, which the in-network
   # checks above bypass entirely.
-  # curl -f turns a 4xx/5xx into a non-zero exit, so this asserts reachability
-  # without pinning the exact success code.
-  run curl -fsS -o /dev/null "https://${PROJNAME}.ddev.site:8142/-/health/live/"
+  run wait_for_router "https://${PROJNAME}.ddev.site:8142/-/health/live/"
   assert_success
 
   # An anonymous request to the root is redirected into the default
