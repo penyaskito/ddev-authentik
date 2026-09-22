@@ -126,6 +126,54 @@ teardown() {
   health_checks
 }
 
+@test "install with configured image tags" {
+  set -eu -o pipefail
+
+  # Deliberately not the shipped defaults, and both real, pullable tags: this
+  # test boots the stack on them. The Authentik one is the last release of the
+  # minor before the default, which is the realistic thing a user pins.
+  local alt_authentik_tag="2026.5.7"
+  local alt_postgres_tag="15-alpine"
+
+  echo "# ddev add-on get ${DIR} with authentik=${alt_authentik_tag} postgres=${alt_postgres_tag}" >&3
+  run ddev add-on get "${DIR}"
+  assert_success
+
+  run ddev dotenv set .ddev/.env.authentik \
+    --authentik-tag="${alt_authentik_tag}" \
+    --authentik-postgres-tag="${alt_postgres_tag}"
+  assert_success
+
+  run ddev restart -y
+  assert_success
+
+  # Assert against the running containers rather than the rendered compose
+  # config: this catches both an override that never reaches a service -- a
+  # mistyped variable, or a .env.authentik DDEV doesn't load, either of which
+  # silently leaves the default in place -- and one that reaches the compose
+  # file but not the container.
+  #
+  # The server and the worker are checked separately because an override that
+  # reaches only one of them leaves two Authentik versions sharing a single
+  # database, and the failure should name which one drifted.
+  run docker inspect --format '{{.Config.Image}}' "ddev-${PROJNAME}-authentik"
+  assert_success
+  assert_output "ghcr.io/goauthentik/server:${alt_authentik_tag}"
+
+  run docker inspect --format '{{.Config.Image}}' "ddev-${PROJNAME}-authentik-worker"
+  assert_success
+  assert_output "ghcr.io/goauthentik/server:${alt_authentik_tag}"
+
+  run docker inspect --format '{{.Config.Image}}' "ddev-${PROJNAME}-authentik-pgsql"
+  assert_success
+  assert_output "docker.io/library/postgres:${alt_postgres_tag}"
+
+  # Pinning a tag is only useful if the stack actually comes up on it. The
+  # readiness check in particular only passes once Authentik has connected to
+  # the overridden PostgreSQL and run its migrations there.
+  health_checks
+}
+
 # bats test_tags=release
 @test "install from release" {
   set -eu -o pipefail
