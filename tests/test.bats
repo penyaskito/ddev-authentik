@@ -37,14 +37,20 @@ setup() {
   assert_success
 }
 
-# Wait for an HTTP endpoint to return the expected status, so the checks below
+# Wait for an HTTP endpoint to return a success status, so the checks below
 # don't race Authentik's startup. Authentik runs migrations on boot, which on a
 # cold database takes a while.
+#
+# Deliberately accepts any 2xx rather than one exact code: the health views
+# return 204 in 2024.x and 200 in 2026.x, while an unready instance returns 503
+# in both. That 2xx-vs-5xx split is the distinction worth asserting on.
 wait_for_http() {
-  local url="$1" expected="$2" attempts="${3:-60}" i status
+  local url="$1" attempts="${2:-60}" i status
   for ((i = 1; i <= attempts; i++)); do
     status="$(ddev exec "curl -s -o /dev/null -w '%{http_code}' ${url}" 2>/dev/null | tr -d '\r')"
-    [ "${status}" = "${expected}" ] && return 0
+    case "${status}" in
+      2*) return 0 ;;
+    esac
     sleep 5
   done
   echo "# timed out waiting for ${url} (last status: ${status:-none})" >&3
@@ -53,13 +59,14 @@ wait_for_http() {
 
 health_checks() {
   # Liveness: the server process is up and serving.
-  run wait_for_http "authentik:9000/-/health/live/" 200
+  run wait_for_http "authentik:9000/-/health/live/"
   assert_success
 
   # Readiness: Authentik can reach PostgreSQL. This is the check that actually
   # catches a broken database or a migration that failed on boot -- the server
-  # answers /-/health/live/ long before it is usable.
-  run wait_for_http "authentik:9000/-/health/ready/" 200
+  # answers /-/health/live/ long before it is usable, and returns 503 here
+  # until it is.
+  run wait_for_http "authentik:9000/-/health/ready/"
   assert_success
 
   # The worker is a separate container that runs migrations and background
@@ -71,9 +78,10 @@ health_checks() {
   # End-to-end through the DDEV router, which is how a developer actually
   # reaches Authentik. This exercises HTTPS_EXPOSE, which the in-network
   # checks above bypass entirely.
-  run curl -sf -o /dev/null -w '%{http_code}' "https://${PROJNAME}.ddev.site:8142/-/health/live/"
+  # curl -f turns a 4xx/5xx into a non-zero exit, so this asserts reachability
+  # without pinning the exact success code.
+  run curl -fsS -o /dev/null "https://${PROJNAME}.ddev.site:8142/-/health/live/"
   assert_success
-  assert_output "200"
 
   # An anonymous request to the root is redirected into the default
   # authentication flow, which shows the default blueprints were applied.
