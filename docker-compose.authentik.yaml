@@ -2,7 +2,7 @@
 services:
   authentik-pgsql:
     container_name: ddev-${DDEV_SITENAME}-authentik-pgsql
-    image: docker.io/library/postgres:16-alpine
+    image: docker.io/library/postgres:${AUTHENTIK_POSTGRES_TAG:-16-alpine}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
       start_period: 20s
@@ -22,32 +22,15 @@ services:
       com.ddev.site-name: ${DDEV_SITENAME}
       com.ddev.approot: $DDEV_APPROOT
 
-  authentik-redis:
-    container_name: ddev-${DDEV_SITENAME}-authentik-redis
-    image: docker.io/library/redis:alpine
-    command: --save 60 1 --loglevel warning
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
-      start_period: 20s
-      interval: 30s
-      retries: 5
-      timeout: 3s
-    volumes:
-      - ".:/mnt/ddev_config"
-        #- "authentik-redis:/data"
-    networks: [default, ddev_default]
-    restart: "no"
-    labels:
-      com.ddev.site-name: ${DDEV_SITENAME}
-      com.ddev.approot: $DDEV_APPROOT
-
   authentik-worker:
     container_name: ddev-${DDEV_SITENAME}-authentik-worker
-    image: ghcr.io/goauthentik/server:2024.4.2
-    restart: unless-stopped
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8.3}
     command: worker
+    # The worker needs root to reach the Docker socket, as in the upstream
+    # compose file.
+    user: root
+    shm_size: 512mb
     environment:
-      AUTHENTIK_REDIS__HOST: ddev-${DDEV_SITENAME}-authentik-redis
       AUTHENTIK_POSTGRESQL__HOST: ddev-${DDEV_SITENAME}-authentik-pgsql
       AUTHENTIK_POSTGRESQL__USER: ${POSTGRES_USER:-authentik}
       AUTHENTIK_POSTGRESQL__NAME: authentik
@@ -59,14 +42,15 @@ services:
       VIRTUAL_HOST: "${DDEV_HOSTNAME}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ".:/mnt_ddev_config"
+      - ".:/mnt/ddev_config"
       - "authentik-media:/media"
       - "authentik-custom-templates:/templates"
       - "authentik-certs:/certs"
     depends_on:
-      - authentik-pgsql
-      - authentik-redis
+      authentik-pgsql:
+        condition: service_healthy
     networks: [default, ddev_default]
+    restart: "no"
     external_links:
       - ddev-router:${DDEV_SITENAME}.${DDEV_TLD}
     labels:
@@ -75,12 +59,12 @@ services:
 
   authentik:
     container_name: ddev-${DDEV_SITENAME}-authentik
-    image: ghcr.io/goauthentik/server:2024.4.2
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8.3}
     command: server
+    shm_size: 512mb
     environment:
       AUTHENTIK_HOST: ${DDEV_PRIMARY_URL}
       AUTHENTIK_INSECURE: "true"
-      AUTHENTIK_REDIS__HOST: ddev-${DDEV_SITENAME}-authentik-redis
       AUTHENTIK_POSTGRESQL__HOST: ddev-${DDEV_SITENAME}-authentik-pgsql
       AUTHENTIK_POSTGRESQL__USER: ${POSTGRES_USER:-authentik}
       AUTHENTIK_POSTGRESQL__NAME: authentik
@@ -92,27 +76,24 @@ services:
       VIRTUAL_HOST: "${DDEV_HOSTNAME}"
       HTTP_EXPOSE: "9000:9000"
       HTTPS_EXPOSE: "9443:9000"
-
     volumes:
-      - ".:/mnt_ddev_config"
+      - ".:/mnt/ddev_config"
       - "authentik-media:/media"
       - "authentik-custom-templates:/templates"
     expose:
       - 9000
     depends_on:
-      - authentik-pgsql
-      - authentik-redis
+      authentik-pgsql:
+        condition: service_healthy
     networks: [default, ddev_default]
+    restart: "no"
     external_links:
       - ddev-router:${DDEV_SITENAME}.${DDEV_TLD}
-    restart: "no"
     labels:
       com.ddev.site-name: ${DDEV_SITENAME}
       com.ddev.approot: $DDEV_APPROOT
 
 volumes:
-  authentik-redis:
-    driver: local
   authentik-pgsql:
     driver: local
   authentik-media:

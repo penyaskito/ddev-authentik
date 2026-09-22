@@ -36,6 +36,51 @@ Authentik is served at `https://<project>.ddev.site:9443` (or
 | `ddev logs -s authentik` | Check Authentik logs |
 | `ddev logs -s authentik-worker` | Check Authentik worker logs |
 
+## Advanced Customization
+
+To change the Authentik version:
+
+```bash
+ddev dotenv set .ddev/.env.authentik --authentik-tag=2026.5.7
+ddev restart
+```
+
+Make sure to commit the `.ddev/.env.authentik` file to version control.
+
+All customization options (use with caution):
+
+| Variable | Flag | Default |
+| -------- | ---- | ------- |
+| `AUTHENTIK_TAG` | `--authentik-tag` | `2026.8.3` |
+| `AUTHENTIK_POSTGRES_TAG` | `--authentik-postgres-tag` | `16-alpine` |
+
+## Upgrading from Authentik 2024.x
+
+Releases of this add-on before the 2026.8.3 bump shipped Authentik `2024.4.2`.
+Authentik requires [sequential major-version upgrades](https://docs.goauthentik.io/install-config/upgrade/)
+and blocks skips, so an existing `2024.x` database **cannot** be migrated
+directly to `2026.x`. Upstream also removed Redis in `2025.10`, so the
+`authentik-redis` volume is no longer used.
+
+Since this is a local development environment, the simplest path is to reset
+Authentik's state and let it bootstrap again:
+
+```bash
+# From your project directory
+ddev stop
+docker volume rm ddev-${DDEV_SITENAME}_authentik-pgsql \
+                 ddev-${DDEV_SITENAME}_authentik-media \
+                 ddev-${DDEV_SITENAME}_authentik-redis
+ddev add-on get penyaskito/ddev-authentik
+ddev restart
+```
+
+Replace `${DDEV_SITENAME}` with your project name, and use `docker volume ls |
+grep authentik` to confirm the exact names first. Any configuration you set up
+in the old Authentik instance — applications, providers, users — will be gone,
+so export anything you want to keep as a
+[blueprint](https://docs.goauthentik.io/customize/blueprints/) before you start.
+
 ## Credits
 
 **Contributed and maintained by [@penyaskito](https://github.com/penyaskito). Thanks to [@Lullabot](https://github.com/lullabot) for their support!**
