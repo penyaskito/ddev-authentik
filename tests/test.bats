@@ -94,12 +94,12 @@ health_checks() {
   # End-to-end through the DDEV router, which is how a developer actually
   # reaches Authentik. This exercises HTTPS_EXPOSE, which the in-network
   # checks above bypass entirely.
-  run wait_for_router "https://${PROJNAME}.ddev.site:8142/-/health/live/"
+  run wait_for_router "https://${PROJNAME}.ddev.site:9443/-/health/live/"
   assert_success
 
   # An anonymous request to the root is redirected into the default
   # authentication flow, which shows the default blueprints were applied.
-  run curl -s -o /dev/null -w '%{redirect_url}' "https://${PROJNAME}.ddev.site:8142/"
+  run curl -s -o /dev/null -w '%{redirect_url}' "https://${PROJNAME}.ddev.site:9443/"
   assert_success
   assert_output --partial "/flows/-/default/authentication/"
 }

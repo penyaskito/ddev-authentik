@@ -20,9 +20,15 @@ After installation, make sure to commit the `.ddev` directory to version control
 
 ## Usage
 
-Authentik is served at `https://<project>.ddev.site:8142`, and reachable from
-the web container as `authentik:9000`. The bootstrap admin user is `akadmin`
-with password `akadmin`.
+Authentik is served at `https://<project>.ddev.site:9443` (or
+`http://<project>.ddev.site:9000`), and is reachable from the web container as
+`authentik:9000`. The bootstrap admin user is `akadmin` with password `akadmin`.
+
+> [!IMPORTANT]
+> Earlier releases served Authentik on port `8142`. That port is also claimed by
+> DDEV's built-in xhgui service, which made Authentik intermittently unreachable,
+> so it moved to `9443`. Update any bookmarks, and any redirect URIs configured in
+> applications that authenticate against your local Authentik.
 
 | Command | Description |
 | ------- | ----------- |

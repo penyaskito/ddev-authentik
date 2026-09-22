@@ -90,7 +90,8 @@ services:
       AUTHENTIK_BOOTSTRAP_PASSWORD: "${AUTHENTIK_BOOTSTRAP_PASSWORD:-akadmin}"
       AUTHENTIK_BOOTSTRAP_TOKEN: "${AUTHENTIK_BOOTSTRAP_TOKEN:-akadmintoken}"
       VIRTUAL_HOST: "${DDEV_HOSTNAME}"
-      HTTPS_EXPOSE: "8142:9000"
+      HTTP_EXPOSE: "9000:9000"
+      HTTPS_EXPOSE: "9443:9000"
 
     volumes:
       - ".:/mnt_ddev_config"
