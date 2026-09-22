@@ -43,7 +43,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ".:/mnt/ddev_config"
-      - "authentik-data:/data"
+      - "authentik-media:/media"
       - "authentik-custom-templates:/templates"
       - "authentik-certs:/certs"
     depends_on:
@@ -78,7 +78,7 @@ services:
       HTTPS_EXPOSE: "9443:9000"
     volumes:
       - ".:/mnt/ddev_config"
-      - "authentik-data:/data"
+      - "authentik-media:/media"
       - "authentik-custom-templates:/templates"
     expose:
       - 9000
@@ -96,7 +96,7 @@ services:
 volumes:
   authentik-pgsql:
     driver: local
-  authentik-data:
+  authentik-media:
     driver: local
   authentik-custom-templates:
     driver: local

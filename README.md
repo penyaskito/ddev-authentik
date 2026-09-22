@@ -59,8 +59,8 @@ All customization options (use with caution):
 Releases of this add-on before the 2026.8.3 bump shipped Authentik `2024.4.2`.
 Authentik requires [sequential major-version upgrades](https://docs.goauthentik.io/install-config/upgrade/)
 and blocks skips, so an existing `2024.x` database **cannot** be migrated
-directly to `2026.x`. Upstream also removed Redis in `2025.10` and moved local
-storage from `/media` to `/data` in `2025.12`.
+directly to `2026.x`. Upstream also removed Redis in `2025.10`, so the
+`authentik-redis` volume is no longer used.
 
 Since this is a local development environment, the simplest path is to reset
 Authentik's state and let it bootstrap again:
