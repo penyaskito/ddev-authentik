@@ -37,12 +37,49 @@ setup() {
   assert_success
 }
 
+# Wait for an HTTP endpoint to return the expected status, so the checks below
+# don't race Authentik's startup. Authentik runs migrations on boot, which on a
+# cold database takes a while.
+wait_for_http() {
+  local url="$1" expected="$2" attempts="${3:-60}" i status
+  for ((i = 1; i <= attempts; i++)); do
+    status="$(ddev exec "curl -s -o /dev/null -w '%{http_code}' ${url}" 2>/dev/null | tr -d '\r')"
+    [ "${status}" = "${expected}" ] && return 0
+    sleep 5
+  done
+  echo "# timed out waiting for ${url} (last status: ${status:-none})" >&3
+  return 1
+}
+
 health_checks() {
-  # The Authentik server redirects anonymous requests to the default
-  # authentication flow, which tells us it is up and talking to its database.
-  run ddev exec "curl -sI authentik:9000"
+  # Liveness: the server process is up and serving.
+  run wait_for_http "authentik:9000/-/health/live/" 200
   assert_success
-  assert_output --regexp "[Ll]ocation: /flows/-/default/authentication/\?next=/"
+
+  # Readiness: Authentik can reach PostgreSQL. This is the check that actually
+  # catches a broken database or a migration that failed on boot -- the server
+  # answers /-/health/live/ long before it is usable.
+  run wait_for_http "authentik:9000/-/health/ready/" 200
+  assert_success
+
+  # The worker is a separate container that runs migrations and background
+  # tasks, and it can die without the server noticing.
+  run docker inspect --format '{{.State.Running}}' "ddev-${PROJNAME}-authentik-worker"
+  assert_success
+  assert_output "true"
+
+  # End-to-end through the DDEV router, which is how a developer actually
+  # reaches Authentik. This exercises HTTPS_EXPOSE, which the in-network
+  # checks above bypass entirely.
+  run curl -sf -o /dev/null -w '%{http_code}' "https://${PROJNAME}.ddev.site:8142/-/health/live/"
+  assert_success
+  assert_output "200"
+
+  # An anonymous request to the root is redirected into the default
+  # authentication flow, which shows the default blueprints were applied.
+  run curl -s -o /dev/null -w '%{redirect_url}' "https://${PROJNAME}.ddev.site:8142/"
+  assert_success
+  assert_output --partial "/flows/-/default/authentication/"
 }
 
 teardown() {
