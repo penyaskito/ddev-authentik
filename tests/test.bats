@@ -37,12 +37,71 @@ setup() {
   assert_success
 }
 
+# Wait for an HTTP endpoint to return a success status, so the checks below
+# don't race Authentik's startup. Authentik runs migrations on boot, which on a
+# cold database takes a while.
+#
+# Deliberately accepts any 2xx rather than one exact code: the health views
+# return 204 in 2024.x and 200 in 2026.x, while an unready instance returns 503
+# in both. That 2xx-vs-5xx split is the distinction worth asserting on.
+wait_for_http() {
+  local url="$1" attempts="${2:-60}" i status
+  for ((i = 1; i <= attempts; i++)); do
+    status="$(ddev exec "curl -s -o /dev/null -w '%{http_code}' ${url}" 2>/dev/null | tr -d '\r')"
+    case "${status}" in
+      2*) return 0 ;;
+    esac
+    sleep 5
+  done
+  echo "# timed out waiting for ${url} (last status: ${status:-none})" >&3
+  return 1
+}
+
+# Same, but from the host through the DDEV router. Kept separate because the
+# router needs its own grace period: once Authentik is healthy in-network,
+# Traefik still has to pick up the backend, and it answers 502 until it does.
+wait_for_router() {
+  local url="$1" attempts="${2:-60}" i status
+  for ((i = 1; i <= attempts; i++)); do
+    status="$(curl -s -o /dev/null -w '%{http_code}' "${url}" 2>/dev/null || true)"
+    case "${status}" in
+      2*) return 0 ;;
+    esac
+    sleep 5
+  done
+  echo "# timed out waiting for ${url} via the router (last status: ${status:-none})" >&3
+  return 1
+}
+
 health_checks() {
-  # The Authentik server redirects anonymous requests to the default
-  # authentication flow, which tells us it is up and talking to its database.
-  run ddev exec "curl -sI authentik:9000"
+  # Liveness: the server process is up and serving.
+  run wait_for_http "authentik:9000/-/health/live/"
   assert_success
-  assert_output --regexp "[Ll]ocation: /flows/-/default/authentication/\?next=/"
+
+  # Readiness: Authentik can reach PostgreSQL. This is the check that actually
+  # catches a broken database or a migration that failed on boot -- the server
+  # answers /-/health/live/ long before it is usable, and returns 503 here
+  # until it is.
+  run wait_for_http "authentik:9000/-/health/ready/"
+  assert_success
+
+  # The worker is a separate container that runs migrations and background
+  # tasks, and it can die without the server noticing.
+  run docker inspect --format '{{.State.Running}}' "ddev-${PROJNAME}-authentik-worker"
+  assert_success
+  assert_output "true"
+
+  # End-to-end through the DDEV router, which is how a developer actually
+  # reaches Authentik. This exercises HTTPS_EXPOSE, which the in-network
+  # checks above bypass entirely.
+  run wait_for_router "https://${PROJNAME}.ddev.site:9443/-/health/live/"
+  assert_success
+
+  # An anonymous request to the root is redirected into the default
+  # authentication flow, which shows the default blueprints were applied.
+  run curl -s -o /dev/null -w '%{redirect_url}' "https://${PROJNAME}.ddev.site:9443/"
+  assert_success
+  assert_output --partial "/flows/-/default/authentication/"
 }
 
 teardown() {
