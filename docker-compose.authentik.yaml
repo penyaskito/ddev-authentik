@@ -2,7 +2,7 @@
 services:
   authentik-pgsql:
     container_name: ddev-${DDEV_SITENAME}-authentik-pgsql
-    image: docker.io/library/postgres:16-alpine
+    image: docker.io/library/postgres:${AUTHENTIK_POSTGRES_TAG:-16-alpine}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
       start_period: 20s
@@ -24,7 +24,7 @@ services:
 
   authentik-worker:
     container_name: ddev-${DDEV_SITENAME}-authentik-worker
-    image: ghcr.io/goauthentik/server:2026.8.3
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8.3}
     command: worker
     # The worker needs root to reach the Docker socket, as in the upstream
     # compose file.
@@ -59,7 +59,7 @@ services:
 
   authentik:
     container_name: ddev-${DDEV_SITENAME}-authentik
-    image: ghcr.io/goauthentik/server:2026.8.3
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8.3}
     command: server
     shm_size: 512mb
     environment:
